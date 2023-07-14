@@ -1,33 +1,26 @@
 package org.globolist;
 
-import opennlp.tools.namefind.NameFinderME;
-import opennlp.tools.namefind.TokenNameFinderModel;
-import opennlp.tools.tokenize.SimpleTokenizer;
-import opennlp.tools.tokenize.Tokenizer;
-import opennlp.tools.util.Span;
-import org.apache.spark.SparkConf;
-import org.apache.spark.SparkFiles;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.input.PortableDataStream;
-import org.netpreserve.jwarc.MessageBody;
+import org.globolist.utils.MySpark;
+import org.globolist.utils.OpenNlp;
+import org.globolist.utils.Text;
 import org.netpreserve.jwarc.WarcReader;
 import org.netpreserve.jwarc.WarcRecord;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.safety.Cleaner;
-import org.jsoup.safety.Safelist;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.util.*;
 
-public class Main2 {
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+
+public class OpenEntities {
     public static void main(String[] args) {
-        String nerfile = args[0];
+        final String nerfile = args[0];
 
         // Create a JavaSparkContext
-        try(JavaSparkContext sc = createSC()) {
+        try(JavaSparkContext sc = MySpark.createJSC()) {
 
             JavaPairRDD<String, PortableDataStream> warcFilesRDD = sc.binaryFiles("/home/gram/Downloads/*.warc.gz");
 
@@ -42,8 +35,8 @@ public class Main2 {
                         if(!headers.get("WARC-Target-URI").isEmpty()
                                 && headers.get("WARC-Type").contains("response")){
                             //do something
-
-                            namedEntities.addAll(findNamedEntities(nerfile, record));
+                            String text = Text.getRecordBody(record);
+                            namedEntities.addAll(OpenNlp.findNamedEntities(nerfile,text));
                         }
                     }
                 }
@@ -71,51 +64,4 @@ public class Main2 {
         }
 
     }
-
-    private static List<String> findNamedEntities(String nerfile, WarcRecord record) {
-        List<String> entitiesList = new ArrayList<>();
-
-        try {
-            // Load the OpenNLP models
-            //TokenizerModel tokenizerModel = new TokenizerModel(new FileInputStream("path/to/tokenizer/model")); // Update with your tokenizer model path
-            NameFinderME nameFinder = new NameFinderME(new TokenNameFinderModel(new FileInputStream(SparkFiles.get(nerfile)))); // Update with your NER model path
-
-            // Tokenize the text
-            Tokenizer tokenizer = SimpleTokenizer.INSTANCE;
-            String[] tokens;
-            try(MessageBody body = record.body()) {
-                // Parse HTML using Jsoup
-                Scanner s = new Scanner(body.stream()).useDelimiter("\\A");
-                String result = s.hasNext() ? s.next() : "";
-                Document doc = Jsoup.parse(result);
-
-                // Remove script tags
-                doc.select("script").remove();
-
-                // Clean HTML using Safelist
-                Safelist safelist = Safelist.basic();
-                safelist.removeTags("b"); // Allow only 'b' tags
-                Cleaner cleaner = new Cleaner(safelist);
-                Document cleanedDoc = cleaner.clean(doc);
-                //System.out.println(cleanedDoc);
-                // Get the cleaned HTML
-                String cleanedHtml = cleanedDoc.body().html();
-                tokens = tokenizer.tokenize(cleanedHtml);
-            }
-
-            // Find named entities
-            Span[] spans = nameFinder.find(tokens);
-            String[] entities = Span.spansToStrings(spans, tokens);
-            if(entities.length > 0)
-                System.out.println(Arrays.toString(entities));
-            nameFinder.clearAdaptiveData();
-
-            // Add named entities to the list
-            entitiesList.addAll(Arrays.asList(entities));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return entitiesList;
-    }
-
 }

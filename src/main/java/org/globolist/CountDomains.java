@@ -3,6 +3,7 @@ package org.globolist;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.input.PortableDataStream;
+import org.globolist.utils.MySpark;
 import org.netpreserve.jwarc.WarcReader;
 import org.netpreserve.jwarc.WarcRecord;
 import scala.Tuple2;
@@ -13,7 +14,7 @@ import java.util.Map;
 import java.util.Set;
 
 
-public class Main {
+public class CountDomains {
     public static void main(String[] args) {
         try (JavaSparkContext sc = MySpark.createJSC()) {
             // Read WARC-GZ files from the input directory
